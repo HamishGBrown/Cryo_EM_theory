@@ -25,7 +25,7 @@ def broadcast_from_unmeshed(coords):
 
     # Broadcast unmeshed grids
     return [np.broadcast_to(a.reshape(rr), pixels) for a, rr in zip(coords, R)]
-    
+
 def r_space_array(pixels, gridsize, meshed=True):
     """
     Return the appropriately scaled ND real space coordinates.
@@ -51,7 +51,7 @@ def r_space_array(pixels, gridsize, meshed=True):
         return broadcast_from_unmeshed(rspace)
     else:
         return rspace
-    
+
 def Gaussian(sigma, gridshape, rsize, theta=0):
     r"""
     Calculate a normalized 2D Gaussian function.
@@ -351,6 +351,59 @@ class aberration:
             return " {0:17s} ({1:2s}) -- {2:3s} = {3:9.2e} \u00E5".format(
                 self.Description, self.Haider, self.Krivanek, self.amplitude
             )
-        
+
 def cs(csinmm):
     return [aberration("C30", "C3", "3rd order spher. ", csinmm*1e7, 0.0, 3, 0)]
+
+def pillbox(sigma,gridshape,rsize,cutoff):
+    gauss = Gaussian(sigma, gridshape, rsize, theta=0)
+    return np.clip(gauss/cutoff,0,1)
+
+def crop(arrayin, shapeout):
+    """
+    Crop the last n dimensions of arrayin to grid size shapeout.
+
+    For entries of shapeout which are larger than the shape of the input array,
+    perform zero-padding.
+
+    Parameters
+    ----------
+    arrayin : (...,N1,N2,...Nn) array_like
+        Array to be cropped or zero-padded.
+    shapeout : (n,) array_like
+        Desired output shape of the final n dimensions of arrayin
+    """
+    # Number of dimensions in input array
+    ndim = arrayin.ndim
+
+    # Trailing dimensions to be cropped/padded
+    n = len(shapeout)
+
+    # Number of dimensions not covered by shapeout (ie not to be cropped)
+    nUntouched = ndim - n
+
+    # Shape of output array
+    shapeout_ = arrayin.shape[:nUntouched] + tuple(shapeout)
+
+    arrayout = np.zeros(shapeout_, dtype=arrayin.dtype)
+
+    oldshape = arrayin.shape[-n:]
+    newshape = shapeout[-n:]
+
+    def indices(y, y_):
+        if y > y_:
+            # Crop in y dimension
+            y1, y2 = [(y - y_) // 2 + (y - y_) % 2, (y + y_) // 2 + (y - y_) % 2]
+            y1_, y2_ = [0, y_]
+        else:
+            # Zero pad in y dimension
+            y1, y2 = [0, y]
+            y1_, y2_ = [(y_ - y) // 2 + (y - y_) % 2, (y + y_) // 2 + (y - y_) % 2]
+        return np.index_exp[y1:y2][0], np.index_exp[y1_:y2_][0]
+
+    ind = [indices(x, x_) for x, x_ in zip(oldshape, newshape)]
+    inind, outind = map(tuple, zip(*ind))
+    arrayout[nUntouched * np.index_exp[:] + outind] = arrayin[
+        nUntouched * np.index_exp[:] + inind
+    ]
+    return arrayout
