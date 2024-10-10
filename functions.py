@@ -407,3 +407,17 @@ def crop(arrayin, shapeout):
         nUntouched * np.index_exp[:] + inind
     ]
     return arrayout
+
+def add_noise(arrayin, Total_counts):
+    """
+    Add Poisson counting noise to simulated data.
+
+    Parameters
+    ----------
+    arrayin : array_like
+        Array giving the fraction of Total_counts that is expected at each pixel
+        in the array.
+    Total_counts : float
+        Total number of electron counts expected over the array.
+    """
+    return np.random.poisson(arrayin * Total_counts)
